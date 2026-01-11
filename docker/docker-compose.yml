@@ -1,12 +1,12 @@
 # Docker Compose for building agent-browser
-# Usage: docker compose -f docker/docker-compose.yml run build-all
+# Usage: docker compose -f docker/docker-compose.yml run build-linux
 #
-# Note: Windows is skipped because the Rust CLI uses Unix sockets.
-# Windows users will use the Node.js fallback automatically.
+# Note: macOS builds should be done natively on macOS for compatibility.
+# Windows uses Node.js fallback (Unix sockets not supported).
 
 services:
-  # Build for all Unix platforms
-  build-all:
+  # Build for Linux platforms only (macOS should be built natively)
+  build-linux:
     build:
       context: ..
       dockerfile: docker/Dockerfile.build
@@ -16,7 +16,7 @@ services:
     command: |
       -c '
         set -e
-        echo "Building for all platforms..."
+        echo "Building for Linux platforms..."
         
         # Linux x64
         echo "→ Linux x64"
@@ -30,22 +30,9 @@ services:
         cp /build/target/aarch64-unknown-linux-gnu/release/agent-browser /output/agent-browser-linux-arm64
         chmod +x /output/agent-browser-linux-arm64
         
-        # macOS x64
-        echo "→ macOS x64"
-        cargo zigbuild --release --target x86_64-apple-darwin
-        cp /build/target/x86_64-apple-darwin/release/agent-browser /output/agent-browser-darwin-x64
-        chmod +x /output/agent-browser-darwin-x64
-        
-        # macOS ARM64
-        echo "→ macOS ARM64"
-        cargo zigbuild --release --target aarch64-apple-darwin
-        cp /build/target/aarch64-apple-darwin/release/agent-browser /output/agent-browser-darwin-arm64
-        chmod +x /output/agent-browser-darwin-arm64
-        
         echo ""
-        echo "✓ All platforms built successfully!"
-        echo "(Windows uses Node.js fallback - Unix sockets not supported)"
-        ls -la /output/agent-browser-*
+        echo "✓ Linux platforms built successfully!"
+        ls -la /output/agent-browser-linux-*
       '
 
   # Build for a single target (override with TARGET env var)

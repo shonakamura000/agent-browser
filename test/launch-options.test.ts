@@ -48,9 +48,9 @@ describe('Launch Options', () => {
       const page = browser.getPage();
       await page.goto('about:blank');
 
-      // Default Playwright behavior - webdriver is true
+      // Stealth is always enabled: navigator.webdriver is hidden (undefined)
       const webdriver = await page.evaluate(() => navigator.webdriver);
-      expect(webdriver).toBe(true);
+      expect(webdriver).toBeUndefined();
     });
   });
 

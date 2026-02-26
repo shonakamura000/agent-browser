@@ -1,7 +1,7 @@
 import {
-  chromium,
-  firefox,
-  webkit,
+  chromium as chromiumCore,
+  firefox as firefoxCore,
+  webkit as webkitCore,
   devices,
   type Browser,
   type BrowserContext,
@@ -13,7 +13,11 @@ import {
   type Locator,
   type CDPSession,
   type Video,
+  type BrowserType,
 } from 'playwright-core';
+import { addExtra } from 'playwright-extra';
+// @ts-ignore
+import StealthPlugin from 'puppeteer-extra-plugin-stealth';
 import path from 'node:path';
 import os from 'node:os';
 import { existsSync, mkdirSync, rmSync, readFileSync, statSync } from 'node:fs';
@@ -28,6 +32,16 @@ import {
   decryptData,
   ENCRYPTION_KEY_ENV,
 } from './state-utils.js';
+
+// Chromium用stealthラッパー（モジュールレベルで一度だけ初期化）
+// user-agent-override evasionを除外: ユーザーが設定したカスタムUAが上書きされるため
+const chromiumExtra = addExtra(chromiumCore);
+const stealthPlugin = StealthPlugin();
+stealthPlugin.enabledEvasions.delete('user-agent-override');
+chromiumExtra.use(stealthPlugin);
+const chromium = chromiumExtra as unknown as typeof chromiumCore;
+const firefox = firefoxCore;
+const webkit = webkitCore;
 
 /**
  * Returns the default Playwright timeout in milliseconds for standard operations.
@@ -937,7 +951,7 @@ export class BrowserManager {
 
     const session = (await response.json()) as { id: string; connectUrl: string };
 
-    const browser = await chromium.connectOverCDP(session.connectUrl).catch(() => {
+    const browser = await chromiumCore.connectOverCDP(session.connectUrl).catch(() => {
       throw new Error('Failed to connect to Browserbase session via CDP');
     });
 
@@ -1075,7 +1089,7 @@ export class BrowserManager {
       );
     }
 
-    const browser = await chromium.connectOverCDP(session.cdp_ws_url).catch(() => {
+    const browser = await chromiumCore.connectOverCDP(session.cdp_ws_url).catch(() => {
       throw new Error('Failed to connect to Kernel session via CDP');
     });
 
@@ -1151,7 +1165,7 @@ export class BrowserManager {
       );
     }
 
-    const browser = await chromium.connectOverCDP(session.cdpUrl).catch(() => {
+    const browser = await chromiumCore.connectOverCDP(session.cdpUrl).catch(() => {
       throw new Error('Failed to connect to Browser Use session via CDP');
     });
 
@@ -1522,7 +1536,7 @@ export class BrowserManager {
       cdpUrl = `http://localhost:${cdpEndpoint}`;
     }
 
-    const browser = await chromium
+    const browser = await chromiumCore
       .connectOverCDP(cdpUrl, { timeout: options?.timeout })
       .catch(() => {
         throw new Error(

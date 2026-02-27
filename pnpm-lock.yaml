@@ -19,7 +19,7 @@ importers:
         version: 4.3.6(playwright-core@1.57.0)(playwright@1.57.0)
       puppeteer-extra-plugin-stealth:
         specifier: ^2.11.2
-        version: 2.11.2(playwright-extra@4.3.6(playwright-core@1.57.0)(playwright@1.57.0))
+        version: 2.11.2(playwright-extra@4.3.6(playwright-core@1.57.0)(playwright@1.57.0))(puppeteer-extra@3.3.6)
       webdriverio:
         specifier: ^9.15.0
         version: 9.23.3
@@ -54,6 +54,9 @@ importers:
       prettier:
         specifier: ^3.7.4
         version: 3.7.4
+      puppeteer-extra:
+        specifier: ^3.3.6
+        version: 3.3.6
       tsx:
         specifier: ^4.6.0
         version: 4.21.0
@@ -1730,6 +1733,21 @@ packages:
       playwright-extra:
         optional: true
       puppeteer-extra:
+        optional: true
+
+  puppeteer-extra@3.3.6:
+    resolution: {integrity: sha512-rsLBE/6mMxAjlLd06LuGacrukP2bqbzKCLzV1vrhHFavqQE/taQ2UXv3H5P0Ls7nsrASa+6x3bDbXHpqMwq+7A==}
+    engines: {node: '>=8'}
+    peerDependencies:
+      '@types/puppeteer': '*'
+      puppeteer: '*'
+      puppeteer-core: '*'
+    peerDependenciesMeta:
+      '@types/puppeteer':
+        optional: true
+      puppeteer:
+        optional: true
+      puppeteer-core:
         optional: true
 
   quansync@0.2.11:
@@ -3842,45 +3860,57 @@ snapshots:
       end-of-stream: 1.4.5
       once: 1.4.0
 
-  puppeteer-extra-plugin-stealth@2.11.2(playwright-extra@4.3.6(playwright-core@1.57.0)(playwright@1.57.0)):
+  puppeteer-extra-plugin-stealth@2.11.2(playwright-extra@4.3.6(playwright-core@1.57.0)(playwright@1.57.0))(puppeteer-extra@3.3.6):
     dependencies:
       debug: 4.4.3
-      puppeteer-extra-plugin: 3.2.3(playwright-extra@4.3.6(playwright-core@1.57.0)(playwright@1.57.0))
-      puppeteer-extra-plugin-user-preferences: 2.4.1(playwright-extra@4.3.6(playwright-core@1.57.0)(playwright@1.57.0))
+      puppeteer-extra-plugin: 3.2.3(playwright-extra@4.3.6(playwright-core@1.57.0)(playwright@1.57.0))(puppeteer-extra@3.3.6)
+      puppeteer-extra-plugin-user-preferences: 2.4.1(playwright-extra@4.3.6(playwright-core@1.57.0)(playwright@1.57.0))(puppeteer-extra@3.3.6)
     optionalDependencies:
       playwright-extra: 4.3.6(playwright-core@1.57.0)(playwright@1.57.0)
+      puppeteer-extra: 3.3.6
     transitivePeerDependencies:
       - supports-color
 
-  puppeteer-extra-plugin-user-data-dir@2.4.1(playwright-extra@4.3.6(playwright-core@1.57.0)(playwright@1.57.0)):
+  puppeteer-extra-plugin-user-data-dir@2.4.1(playwright-extra@4.3.6(playwright-core@1.57.0)(playwright@1.57.0))(puppeteer-extra@3.3.6):
     dependencies:
       debug: 4.4.3
       fs-extra: 10.1.0
-      puppeteer-extra-plugin: 3.2.3(playwright-extra@4.3.6(playwright-core@1.57.0)(playwright@1.57.0))
+      puppeteer-extra-plugin: 3.2.3(playwright-extra@4.3.6(playwright-core@1.57.0)(playwright@1.57.0))(puppeteer-extra@3.3.6)
       rimraf: 3.0.2
     optionalDependencies:
       playwright-extra: 4.3.6(playwright-core@1.57.0)(playwright@1.57.0)
+      puppeteer-extra: 3.3.6
     transitivePeerDependencies:
       - supports-color
 
-  puppeteer-extra-plugin-user-preferences@2.4.1(playwright-extra@4.3.6(playwright-core@1.57.0)(playwright@1.57.0)):
+  puppeteer-extra-plugin-user-preferences@2.4.1(playwright-extra@4.3.6(playwright-core@1.57.0)(playwright@1.57.0))(puppeteer-extra@3.3.6):
     dependencies:
       debug: 4.4.3
       deepmerge: 4.3.1
-      puppeteer-extra-plugin: 3.2.3(playwright-extra@4.3.6(playwright-core@1.57.0)(playwright@1.57.0))
-      puppeteer-extra-plugin-user-data-dir: 2.4.1(playwright-extra@4.3.6(playwright-core@1.57.0)(playwright@1.57.0))
+      puppeteer-extra-plugin: 3.2.3(playwright-extra@4.3.6(playwright-core@1.57.0)(playwright@1.57.0))(puppeteer-extra@3.3.6)
+      puppeteer-extra-plugin-user-data-dir: 2.4.1(playwright-extra@4.3.6(playwright-core@1.57.0)(playwright@1.57.0))(puppeteer-extra@3.3.6)
     optionalDependencies:
       playwright-extra: 4.3.6(playwright-core@1.57.0)(playwright@1.57.0)
+      puppeteer-extra: 3.3.6
     transitivePeerDependencies:
       - supports-color
 
-  puppeteer-extra-plugin@3.2.3(playwright-extra@4.3.6(playwright-core@1.57.0)(playwright@1.57.0)):
+  puppeteer-extra-plugin@3.2.3(playwright-extra@4.3.6(playwright-core@1.57.0)(playwright@1.57.0))(puppeteer-extra@3.3.6):
     dependencies:
       '@types/debug': 4.1.12
       debug: 4.4.3
       merge-deep: 3.0.3
     optionalDependencies:
       playwright-extra: 4.3.6(playwright-core@1.57.0)(playwright@1.57.0)
+      puppeteer-extra: 3.3.6
+    transitivePeerDependencies:
+      - supports-color
+
+  puppeteer-extra@3.3.6:
+    dependencies:
+      '@types/debug': 4.1.12
+      debug: 4.4.3
+      deepmerge: 4.3.1
     transitivePeerDependencies:
       - supports-color
 

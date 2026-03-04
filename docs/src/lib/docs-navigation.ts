@@ -15,6 +15,7 @@ export const navigation: NavSection[] = [
       { name: "Introduction", href: "/" },
       { name: "Installation", href: "/installation" },
       { name: "Quick Start", href: "/quick-start" },
+      { name: "Skills", href: "/skills" },
     ],
   },
   {
@@ -36,6 +37,7 @@ export const navigation: NavSection[] = [
       { name: "Profiler", href: "/profiler" },
       { name: "iOS Simulator", href: "/ios" },
       { name: "Security", href: "/security" },
+      { name: "Native Mode (Experimental)", href: "/native-mode" },
     ],
   },
   {

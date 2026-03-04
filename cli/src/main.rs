@@ -3,7 +3,10 @@ mod commands;
 mod connection;
 mod flags;
 mod install;
+mod native;
 mod output;
+#[cfg(test)]
+mod test_utils;
 mod validation;
 
 use serde_json::json;
@@ -20,7 +23,9 @@ use commands::{gen_id, parse_command, ParseError};
 use connection::{ensure_daemon, get_socket_dir, send_command, DaemonOptions};
 use flags::{clean_args, parse_flags};
 use install::run_install;
-use output::{print_command_help, print_help, print_response_with_opts, print_version, OutputOptions};
+use output::{
+    print_command_help, print_help, print_response_with_opts, print_version, OutputOptions,
+};
 
 use std::path::PathBuf;
 use std::process::Command as ProcessCommand;
@@ -31,6 +36,15 @@ use std::process::Command as ProcessCommand;
 fn run_auth_cli(cmd: &serde_json::Value, json_mode: bool) -> ! {
     let exe_path = env::current_exe().unwrap_or_default();
     let exe_path = exe_path.canonicalize().unwrap_or(exe_path);
+    #[cfg(windows)]
+    let exe_path = {
+        let p = exe_path.to_string_lossy();
+        if let Some(stripped) = p.strip_prefix(r"\\?\") {
+            PathBuf::from(stripped)
+        } else {
+            exe_path
+        }
+    };
     let exe_dir = exe_path.parent().unwrap_or(std::path::Path::new("."));
 
     let mut script_paths = vec![
@@ -111,7 +125,10 @@ fn run_auth_cli(cmd: &serde_json::Value, json_mode: bool) -> ! {
         }
         Err(e) => {
             if json_mode {
-                println!(r#"{{"success":false,"error":"Failed to run auth-cli: {}"}}"#, e);
+                println!(
+                    r#"{{"success":false,"error":"Failed to run auth-cli: {}"}}"#,
+                    e
+                );
             } else {
                 eprintln!("{} Failed to run auth-cli: {}", color::error_indicator(), e);
             }
@@ -170,7 +187,11 @@ fn run_session(args: &[String], session: &str, json_mode: bool) {
                             if let Ok(pid_str) = fs::read_to_string(&pid_path) {
                                 if let Ok(pid) = pid_str.trim().parse::<u32>() {
                                     #[cfg(unix)]
-                                    let running = unsafe { libc::kill(pid as i32, 0) == 0 };
+                                    let running = unsafe {
+                                        libc::kill(pid as i32, 0) == 0
+                                            || std::io::Error::last_os_error().raw_os_error()
+                                                != Some(libc::ESRCH)
+                                    };
                                     #[cfg(windows)]
                                     let running = unsafe {
                                         let handle =
@@ -227,6 +248,27 @@ fn main() {
     #[cfg(unix)]
     unsafe {
         libc::signal(libc::SIGPIPE, libc::SIG_DFL);
+    }
+
+    // Prevent MSYS/Git Bash path translation from mangling arguments
+    #[cfg(windows)]
+    {
+        env::set_var("MSYS_NO_PATHCONV", "1");
+        env::set_var("MSYS2_ARG_CONV_EXCL", "*");
+    }
+
+    // Native daemon mode: when AGENT_BROWSER_DAEMON is set, run as the daemon process
+    if env::var("AGENT_BROWSER_DAEMON").is_ok() {
+        // Ignore SIGPIPE so the daemon isn't killed when the parent drops
+        // the piped stderr handle after confirming the daemon is ready.
+        #[cfg(unix)]
+        unsafe {
+            libc::signal(libc::SIGPIPE, libc::SIG_IGN);
+        }
+        let session = env::var("AGENT_BROWSER_SESSION").unwrap_or_else(|_| "default".to_string());
+        let rt = tokio::runtime::Runtime::new().expect("Failed to create tokio runtime");
+        rt.block_on(native::daemon::run_daemon(&session));
+        return;
     }
 
     let args: Vec<String> = env::args().skip(1).collect();
@@ -300,10 +342,17 @@ fn main() {
                 color::warning_indicator()
             );
         }
-        if cmd.get("passwordStdin").and_then(|v| v.as_bool()).unwrap_or(false) {
+        if cmd
+            .get("passwordStdin")
+            .and_then(|v| v.as_bool())
+            .unwrap_or(false)
+        {
             let mut pass = String::new();
             if std::io::stdin().read_line(&mut pass).is_err() || pass.is_empty() {
-                eprintln!("{} Failed to read password from stdin", color::error_indicator());
+                eprintln!(
+                    "{} Failed to read password from stdin",
+                    color::error_indicator()
+                );
                 exit(1);
             }
             let pass = pass.trim_end_matches('\n').trim_end_matches('\r');
@@ -319,7 +368,10 @@ fn main() {
     // Handle local auth commands without starting the daemon.
     // These don't need a browser, so we avoid sending passwords through the socket.
     if let Some(action) = cmd.get("action").and_then(|v| v.as_str()) {
-        if matches!(action, "auth_save" | "auth_list" | "auth_show" | "auth_delete") {
+        if matches!(
+            action,
+            "auth_save" | "auth_list" | "auth_show" | "auth_delete"
+        ) {
             run_auth_cli(&cmd, flags.json);
         }
     }
@@ -342,6 +394,7 @@ fn main() {
 
     let daemon_opts = DaemonOptions {
         headed: flags.headed,
+        debug: flags.debug,
         executable_path: flags.executable_path.as_deref(),
         extensions: &flags.extensions,
         args: flags.args.as_deref(),
@@ -359,6 +412,7 @@ fn main() {
         allowed_domains: flags.allowed_domains.as_deref(),
         action_policy: flags.action_policy.as_deref(),
         confirm_actions: flags.confirm_actions.as_deref(),
+        native: flags.native,
     };
     let daemon_result = match ensure_daemon(&flags.session, &daemon_opts) {
         Ok(result) => result,
@@ -416,6 +470,7 @@ fn main() {
             flags.ignore_https_errors.then_some("--ignore-https-errors"),
             flags.cli_allow_file_access.then_some("--allow-file-access"),
             flags.cli_download_path.then_some("--download-path"),
+            flags.cli_native.then_some("--native"),
         ]
         .into_iter()
         .flatten()
@@ -768,10 +823,20 @@ fn main() {
             // Handle interactive confirmation
             if flags.confirm_interactive {
                 if let Some(data) = &resp.data {
-                    if data.get("confirmation_required").and_then(|v| v.as_bool()).unwrap_or(false) {
-                        let desc = data.get("description").and_then(|v| v.as_str()).unwrap_or("unknown action");
+                    if data
+                        .get("confirmation_required")
+                        .and_then(|v| v.as_bool())
+                        .unwrap_or(false)
+                    {
+                        let desc = data
+                            .get("description")
+                            .and_then(|v| v.as_str())
+                            .unwrap_or("unknown action");
                         let category = data.get("category").and_then(|v| v.as_str()).unwrap_or("");
-                        let cid = data.get("confirmation_id").and_then(|v| v.as_str()).unwrap_or("");
+                        let cid = data
+                            .get("confirmation_id")
+                            .and_then(|v| v.as_str())
+                            .unwrap_or("");
 
                         eprintln!("[agent-browser] Action requires confirmation:");
                         eprintln!("  {}: {}", category, desc);

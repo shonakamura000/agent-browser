@@ -262,7 +262,12 @@ export function isDaemonRunning(session?: string): boolean {
     // Check if process exists (works on both Unix and Windows)
     process.kill(pid, 0);
     return true;
-  } catch {
+  } catch (err: unknown) {
+    // EPERM means the process exists but we lack permission to signal it
+    // (e.g. caller is inside a macOS sandbox). Only ESRCH means it's gone.
+    if (err instanceof Error && (err as NodeJS.ErrnoException).code === 'EPERM') {
+      return true;
+    }
     // Process doesn't exist, clean up stale files
     cleanupSocket(session);
     return false;
@@ -427,7 +432,7 @@ export async function startDaemon(options?: {
             } else if (manager instanceof BrowserManager) {
               // Auto-launch desktop browser
               const extensions = process.env.AGENT_BROWSER_EXTENSIONS
-                ? process.env.AGENT_BROWSER_EXTENSIONS.split(',')
+                ? process.env.AGENT_BROWSER_EXTENSIONS.split(/[,\n]/)
                     .map((p) => p.trim())
                     .filter(Boolean)
                 : undefined;
@@ -463,7 +468,9 @@ export async function startDaemon(options?: {
               await manager.launch({
                 id: 'auto',
                 action: 'launch' as const,
-                headless: process.env.AGENT_BROWSER_HEADED !== '1',
+                headless:
+                  process.env.AGENT_BROWSER_HEADED !== '1' &&
+                  process.env.AGENT_BROWSER_HEADED !== 'true',
                 executablePath: process.env.AGENT_BROWSER_EXECUTABLE_PATH,
                 extensions: extensions,
                 profile: process.env.AGENT_BROWSER_PROFILE,

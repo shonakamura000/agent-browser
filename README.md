@@ -484,7 +484,7 @@ This is useful for multimodal AI models that can reason about visual layout, unl
 | `--json` | JSON output (for agents) |
 | `--full, -f` | Full page screenshot |
 | `--annotate` | Annotated screenshot with numbered element labels (or `AGENT_BROWSER_ANNOTATE` env) |
-| `--headed` | Show browser window (not headless) |
+| `--headed` | Show browser window (not headless) (or `AGENT_BROWSER_HEADED` env) |
 | `--cdp <port\|url>` | Connect via Chrome DevTools Protocol (port or WebSocket URL) |
 | `--auto-connect` | Auto-discover and connect to running Chrome (or `AGENT_BROWSER_AUTO_CONNECT` env) |
 | `--color-scheme <scheme>` | Color scheme: `dark`, `light`, `no-preference` (or `AGENT_BROWSER_COLOR_SCHEME` env) |
@@ -495,6 +495,7 @@ This is useful for multimodal AI models that can reason about visual layout, unl
 | `--action-policy <path>` | Path to action policy JSON file (or `AGENT_BROWSER_ACTION_POLICY` env) |
 | `--confirm-actions <list>` | Action categories requiring confirmation (or `AGENT_BROWSER_CONFIRM_ACTIONS` env) |
 | `--confirm-interactive` | Interactive confirmation prompts; auto-denies if stdin is not a TTY (or `AGENT_BROWSER_CONFIRM_INTERACTIVE` env) |
+| `--native` | [Experimental] Use native Rust daemon instead of Node.js (or `AGENT_BROWSER_NATIVE` env) |
 | `--config <path>` | Use a custom config file (or `AGENT_BROWSER_CONFIG` env) |
 | `--debug` | Debug output |
 
@@ -656,6 +657,8 @@ agent-browser open example.com --headed
 ```
 
 This opens a visible browser window instead of running headless.
+
+> **Note:** Browser extensions work in both headed and headless mode (Chrome's `--headless=new`).
 
 ## Authenticated Sessions
 
@@ -910,12 +913,50 @@ await browser.stopScreencast();
 agent-browser uses a client-daemon architecture:
 
 1. **Rust CLI** (fast native binary) - Parses commands, communicates with daemon
-2. **Node.js Daemon** - Manages Playwright browser instance
-3. **Fallback** - If native binary unavailable, uses Node.js directly
+2. **Node.js Daemon** (default) - Manages Playwright browser instance
+3. **Native Daemon** (experimental, `--native`) - Pure Rust daemon using direct CDP, no Node.js required
+4. **Fallback** - If native binary unavailable, uses Node.js directly
 
 The daemon starts automatically on first command and persists between commands for fast subsequent operations.
 
-**Browser Engine:** Uses Chromium by default. The daemon also supports Firefox and WebKit via the Playwright protocol.
+**Browser Engine:** Uses Chromium by default. The default Node.js daemon also supports Firefox and WebKit via Playwright. The experimental native daemon speaks Chrome DevTools Protocol (CDP) directly and supports Chromium-based browsers and Safari (via WebDriver).
+
+## Experimental: Native Mode
+
+The native daemon is a pure Rust implementation that communicates with Chrome directly via CDP, eliminating the Node.js and Playwright dependencies. It is currently **experimental** and opt-in.
+
+### Enabling Native Mode
+
+```bash
+# Via flag
+agent-browser --native open example.com
+
+# Via environment variable (recommended for persistent use)
+export AGENT_BROWSER_NATIVE=1
+agent-browser open example.com
+```
+
+Or add to your config file (`agent-browser.json`):
+
+```json
+{"native": true}
+```
+
+### What's Different
+
+| | Default (Node.js) | Native (`--native`) |
+|---|---|---|
+| **Runtime** | Node.js + Playwright | Pure Rust binary |
+| **Protocol** | Playwright protocol | Direct CDP / WebDriver |
+| **Install size** | Larger (Node.js + npm deps) | Smaller (single binary) |
+| **Browser support** | Chromium, Firefox, WebKit | Chromium, Safari (via WebDriver) |
+| **Stability** | Stable | Experimental |
+
+### Known Limitations
+
+- Firefox and WebKit are not yet supported (Chromium and Safari only)
+- Some Playwright-specific features (tracing format, HAR export) are not available
+- The native daemon and Node.js daemon share the same session socket, so you cannot run both simultaneously for the same session. Use `agent-browser close` before switching modes.
 
 ## Platforms
 

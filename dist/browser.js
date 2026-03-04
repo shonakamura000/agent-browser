@@ -11,10 +11,8 @@ import { safeHeaderMerge } from './state-utils.js';
 import { isDomainAllowed, installDomainFilter, parseDomainList } from './domain-filter.js';
 import { getEncryptionKey, isEncryptedPayload, decryptData, ENCRYPTION_KEY_ENV, } from './state-utils.js';
 // Chromium用stealthラッパー（モジュールレベルで一度だけ初期化）
-// user-agent-override evasionを除外: ユーザーが設定したカスタムUAが上書きされるため
 const chromiumExtra = addExtra(chromiumCore);
 const stealthPlugin = StealthPlugin();
-stealthPlugin.enabledEvasions.delete('user-agent-override');
 chromiumExtra.use(stealthPlugin);
 const chromium = chromiumExtra;
 const firefox = firefoxCore;
@@ -153,13 +151,10 @@ export class BrowserManager {
             return page.locator(refData.selector);
         }
         // Build locator with exact: true to avoid substring matches
-        let locator;
-        if (refData.name) {
-            locator = page.getByRole(refData.role, { name: refData.name, exact: true });
-        }
-        else {
-            locator = page.getByRole(refData.role);
-        }
+        let locator = page.getByRole(refData.role, {
+            name: refData.name,
+            exact: true,
+        });
         // If an nth index is stored (for disambiguation), use it
         if (refData.nth !== undefined) {
             locator = locator.nth(refData.nth);
@@ -1149,12 +1144,12 @@ export class BrowserManager {
             const extArgs = [`--disable-extensions-except=${extPaths}`, `--load-extension=${extPaths}`];
             const allArgs = baseArgs ? [...extArgs, ...baseArgs] : extArgs;
             context = await launcher.launchPersistentContext(path.join(os.tmpdir(), `agent-browser-ext-${session}`), {
-                headless: false,
+                headless: options.headless ?? true,
                 executablePath: options.executablePath,
                 args: allArgs,
                 viewport,
                 extraHTTPHeaders: options.headers,
-                userAgent: options.userAgent,
+                ...(options.userAgent && { userAgent: options.userAgent }),
                 ...(options.proxy && { proxy: options.proxy }),
                 ignoreHTTPSErrors: options.ignoreHTTPSErrors ?? false,
                 ...(this.colorScheme && { colorScheme: this.colorScheme }),
@@ -1172,7 +1167,7 @@ export class BrowserManager {
                 args: baseArgs,
                 viewport,
                 extraHTTPHeaders: options.headers,
-                userAgent: options.userAgent,
+                ...(options.userAgent && { userAgent: options.userAgent }),
                 ...(options.proxy && { proxy: options.proxy }),
                 ignoreHTTPSErrors: options.ignoreHTTPSErrors ?? false,
                 ...(this.colorScheme && { colorScheme: this.colorScheme }),
@@ -1239,7 +1234,7 @@ export class BrowserManager {
             context = await this.browser.newContext({
                 viewport,
                 extraHTTPHeaders: options.headers,
-                userAgent: options.userAgent,
+                ...(options.userAgent && { userAgent: options.userAgent }),
                 storageState,
                 ...(options.proxy && { proxy: options.proxy }),
                 ignoreHTTPSErrors: options.ignoreHTTPSErrors ?? false,

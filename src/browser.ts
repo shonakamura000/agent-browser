@@ -34,10 +34,8 @@ import {
 } from './state-utils.js';
 
 // Chromium用stealthラッパー（モジュールレベルで一度だけ初期化）
-// user-agent-override evasionを除外: ユーザーが設定したカスタムUAが上書きされるため
 const chromiumExtra = addExtra(chromiumCore);
 const stealthPlugin = StealthPlugin();
-stealthPlugin.enabledEvasions.delete('user-agent-override');
 chromiumExtra.use(stealthPlugin);
 const chromium = chromiumExtra as unknown as typeof chromiumCore;
 const firefox = firefoxCore;
@@ -1374,7 +1372,7 @@ export class BrowserManager {
           args: allArgs,
           viewport,
           extraHTTPHeaders: options.headers,
-          userAgent: options.userAgent,
+          ...(options.userAgent && { userAgent: options.userAgent }),
           ...(options.proxy && { proxy: options.proxy }),
           ignoreHTTPSErrors: options.ignoreHTTPSErrors ?? false,
           ...(this.colorScheme && { colorScheme: this.colorScheme }),
@@ -1392,7 +1390,7 @@ export class BrowserManager {
         args: baseArgs,
         viewport,
         extraHTTPHeaders: options.headers,
-        userAgent: options.userAgent,
+        ...(options.userAgent && { userAgent: options.userAgent }),
         ...(options.proxy && { proxy: options.proxy }),
         ignoreHTTPSErrors: options.ignoreHTTPSErrors ?? false,
         ...(this.colorScheme && { colorScheme: this.colorScheme }),
@@ -1479,7 +1477,7 @@ export class BrowserManager {
       context = await this.browser.newContext({
         viewport,
         extraHTTPHeaders: options.headers,
-        userAgent: options.userAgent,
+        ...(options.userAgent && { userAgent: options.userAgent }),
         storageState,
         ...(options.proxy && { proxy: options.proxy }),
         ignoreHTTPSErrors: options.ignoreHTTPSErrors ?? false,

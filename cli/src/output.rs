@@ -100,6 +100,23 @@ pub fn print_response_with_opts(resp: &Response, action: Option<&str>, opts: &Ou
     }
 
     if let Some(data) = &resp.data {
+        // Inspect response (check before generic URL handler since it also has a "url" field)
+        if action == Some("inspect") {
+            let opened = data
+                .get("opened")
+                .and_then(|v| v.as_bool())
+                .unwrap_or(false);
+            if opened {
+                if let Some(url) = data.get("url").and_then(|v| v.as_str()) {
+                    println!("{} Opened DevTools: {}", color::success_indicator(), url);
+                } else {
+                    println!("{} Opened DevTools", color::success_indicator());
+                }
+            } else if let Some(err) = data.get("error").and_then(|v| v.as_str()) {
+                eprintln!("Could not open DevTools: {}", err);
+            }
+            return;
+        }
         // Navigation response
         if let Some(url) = data.get("url").and_then(|v| v.as_str()) {
             if let Some(title) = data.get("title").and_then(|v| v.as_str()) {
@@ -108,6 +125,10 @@ pub fn print_response_with_opts(resp: &Response, action: Option<&str>, opts: &Ou
                 return;
             }
             println!("{}", url);
+            return;
+        }
+        if let Some(cdp_url) = data.get("cdpUrl").and_then(|v| v.as_str()) {
+            println!("{}", cdp_url);
             return;
         }
         // Diff responses -- route by action to avoid fragile shape probing
@@ -1292,11 +1313,17 @@ Modes:
   --url <pattern>      Wait for URL to match pattern
   --load <state>       Wait for load state (load, domcontentloaded, networkidle)
   --fn <expression>    Wait for JavaScript expression to be truthy
-  --text <text>        Wait for text to appear on page
+  --text <text>        Wait for text to appear on page (substring match)
   --download [path]    Wait for a download to complete (optionally save to path)
 
 Download Options (with --download):
   --timeout <ms>       Timeout in milliseconds for download to start
+
+Wait for text to disappear:
+  Use --fn or --state hidden to wait for text or elements to go away:
+  wait --fn "!document.body.innerText.includes('Loading...')"
+  wait "#spinner" --state hidden
+  wait @e5 --state detached
 
 Global Options:
   --json               Output as JSON
@@ -1311,6 +1338,7 @@ Examples:
   agent-browser wait --text "Welcome back"
   agent-browser wait --download ./file.pdf
   agent-browser wait --download ./report.xlsx --timeout 30000
+  agent-browser wait --fn "!document.body.innerText.includes('Loading...')"
 "##
         }
 
@@ -1319,7 +1347,7 @@ Examples:
             r##"
 agent-browser screenshot - Take a screenshot
 
-Usage: agent-browser screenshot [path]
+Usage: agent-browser screenshot [selector] [path]
 
 Captures a screenshot of the current page. If no path is provided,
 saves to a temporary directory with a generated filename.
@@ -1330,6 +1358,14 @@ Options:
                        Each label [N] corresponds to ref @eN from snapshot.
                        Prints a legend mapping labels to element roles/names.
                        With --json, annotations are included in the response.
+                       In native mode, this is currently supported on the
+                       CDP-backed browser path (Chromium/Lightpanda).
+  --screenshot-dir <path>  Default output directory for screenshots
+                       (or AGENT_BROWSER_SCREENSHOT_DIR env)
+  --screenshot-quality <0-100>  JPEG quality (0-100, only applies to jpeg format)
+                       (or AGENT_BROWSER_SCREENSHOT_QUALITY env)
+  --screenshot-format <fmt>  Image format: png (default) or jpeg
+                       (or AGENT_BROWSER_SCREENSHOT_FORMAT env)
 
 Global Options:
   --json               Output as JSON
@@ -1342,6 +1378,8 @@ Examples:
   agent-browser screenshot --annotate              # Labeled screenshot + legend
   agent-browser screenshot --annotate ./page.png   # Save annotated screenshot
   agent-browser screenshot --annotate --json       # JSON output with annotations
+  agent-browser screenshot --screenshot-dir ./shots # Save to custom directory
+  agent-browser screenshot --screenshot-format jpeg --screenshot-quality 80
 "##
         }
         "pdf" => {
@@ -1445,6 +1483,25 @@ Examples:
 "##
         }
 
+        // === Inspect ===
+        "inspect" => {
+            r##"
+agent-browser inspect - Open Chrome DevTools for the active page
+
+Starts a local WebSocket proxy and opens Chrome's DevTools frontend in your
+default browser. The proxy routes DevTools traffic through the daemon's
+existing CDP connection, so both DevTools and agent-browser commands work
+simultaneously.
+
+Usage: agent-browser inspect
+
+Examples:
+  agent-browser open example.com
+  agent-browser inspect          # opens DevTools in your browser
+  agent-browser click "Submit"   # commands still work while DevTools is open
+"##
+        }
+
         // === Get ===
         "get" => {
             r##"
@@ -1464,6 +1521,7 @@ Subcommands:
   count <selector>           Count matching elements
   box <selector>             Get bounding box (x, y, width, height)
   styles <selector>          Get computed styles of elements
+  cdp-url                    Get Chrome DevTools Protocol WebSocket URL
 
 Global Options:
   --json               Output as JSON
@@ -1590,7 +1648,7 @@ Usage: agent-browser set <setting> [args]
 Configures various browser settings and emulation options.
 
 Settings:
-  viewport <w> <h>           Set viewport size
+  viewport <w> <h> [scale]   Set viewport size (scale = deviceScaleFactor, e.g. 2 for retina)
   device <name>              Emulate device (e.g., "iPhone 12")
   geo <lat> <lng>            Set geolocation
   offline [on|off]           Toggle offline mode
@@ -1605,6 +1663,7 @@ Global Options:
 
 Examples:
   agent-browser set viewport 1920 1080
+  agent-browser set viewport 1920 1080 2    # 2x retina
   agent-browser set device "iPhone 12"
   agent-browser set geo 37.7749 -122.4194
   agent-browser set offline on
@@ -2053,6 +2112,33 @@ Examples:
 "##
         }
 
+        // === Clipboard ===
+        "clipboard" => {
+            r##"
+agent-browser clipboard - Read and write clipboard
+
+Usage: agent-browser clipboard <operation> [text]
+
+Read from or write to the browser clipboard.
+
+Operations:
+  read                 Read text from clipboard
+  write <text>         Write text to clipboard
+  copy                 Copy current selection (simulates Ctrl+C)
+  paste                Paste from clipboard (simulates Ctrl+V)
+
+Global Options:
+  --json               Output as JSON
+  --session <name>     Use specific session
+
+Examples:
+  agent-browser clipboard read
+  agent-browser clipboard write "Hello, World!"
+  agent-browser clipboard copy
+  agent-browser clipboard paste
+"##
+        }
+
         // === State ===
         "state" => {
             r##"
@@ -2348,7 +2434,7 @@ Navigation:
   reload                     Reload page
 
 Get Info:  agent-browser get <what> [selector]
-  text, html, value, attr <name>, title, url, count, box, styles
+  text, html, value, attr <name>, title, url, count, box, styles, cdp-url
 
 Check State:  agent-browser is <what> <selector>
   visible, enabled, checked
@@ -2389,6 +2475,8 @@ Debug:
   console [--clear]          View console logs
   errors [--clear]           View page errors
   highlight <sel>            Highlight element
+  inspect                    Open Chrome DevTools for the active page
+  clipboard <op> [text]      Read/write clipboard (read, write, copy, paste)
 
 Auth Vault:
   auth save <name> [opts]    Save auth profile (--url, --username, --password/--password-stdin)
@@ -2415,11 +2503,19 @@ Snapshot Options:
   -d, --depth <n>            Limit tree depth
   -s, --selector <sel>       Scope to CSS selector
 
+Authentication:
+  --profile <path>           Persist login sessions across restarts (cookies, IndexedDB, cache)
+                             (or AGENT_BROWSER_PROFILE env)
+  --session-name <name>      Auto-save/restore cookies and localStorage by name
+                             (or AGENT_BROWSER_SESSION_NAME env)
+  --state <path>             Load saved auth state (cookies + storage) from JSON file
+                             (or AGENT_BROWSER_STATE env)
+  --auto-connect             Connect to a running Chrome to reuse its auth state
+                             Tip: agent-browser --auto-connect state save ./auth.json
+  --headers <json>           HTTP headers scoped to URL's origin (e.g., Authorization bearer token)
+
 Options:
   --session <name>           Isolated session (or AGENT_BROWSER_SESSION env)
-  --profile <path>           Persistent browser profile (or AGENT_BROWSER_PROFILE env)
-  --state <path>             Load storage state from JSON file (or AGENT_BROWSER_STATE env)
-  --headers <json>           HTTP headers scoped to URL's origin (for auth)
   --executable-path <path>   Custom browser executable (or AGENT_BROWSER_EXECUTABLE_PATH)
   --extension <path>         Load browser extensions (repeatable)
   --args <args>              Browser launch args, comma or newline separated (or AGENT_BROWSER_ARGS)
@@ -2431,23 +2527,25 @@ Options:
                              e.g., --proxy-bypass "localhost,*.internal.com"
   --ignore-https-errors      Ignore HTTPS certificate errors
   --allow-file-access        Allow file:// URLs to access local files (Chromium only)
-  -p, --provider <name>      Browser provider: ios, browserbase, kernel, browseruse
+  -p, --provider <name>      Browser provider: ios, browserbase, kernel, browseruse, browserless
   --device <name>            iOS device name (e.g., "iPhone 15 Pro")
   --json                     JSON output
   --full, -f                 Full page screenshot
   --annotate                 Annotated screenshot with numbered labels and legend
+  --screenshot-dir <path>    Default screenshot output directory (or AGENT_BROWSER_SCREENSHOT_DIR)
+  --screenshot-quality <n>   JPEG quality 0-100; ignored for PNG (or AGENT_BROWSER_SCREENSHOT_QUALITY)
+  --screenshot-format <fmt>  Screenshot format: png, jpeg (or AGENT_BROWSER_SCREENSHOT_FORMAT)
   --headed                   Show browser window (not headless) (or AGENT_BROWSER_HEADED env)
   --cdp <port>               Connect via CDP (Chrome DevTools Protocol)
-  --auto-connect             Auto-discover and connect to running Chrome
   --color-scheme <scheme>    Color scheme: dark, light, no-preference (or AGENT_BROWSER_COLOR_SCHEME)
   --download-path <path>     Default download directory (or AGENT_BROWSER_DOWNLOAD_PATH)
-  --session-name <name>      Auto-save/restore session state (cookies, localStorage)
   --content-boundaries       Wrap page output in boundary markers (or AGENT_BROWSER_CONTENT_BOUNDARIES)
   --max-output <chars>       Truncate page output to N chars (or AGENT_BROWSER_MAX_OUTPUT)
   --allowed-domains <list>   Restrict navigation domains (or AGENT_BROWSER_ALLOWED_DOMAINS)
   --action-policy <path>     Action policy JSON file (or AGENT_BROWSER_ACTION_POLICY)
   --confirm-actions <list>   Categories requiring confirmation (or AGENT_BROWSER_CONFIRM_ACTIONS)
   --confirm-interactive      Interactive confirmation prompts; auto-denies if stdin is not a TTY (or AGENT_BROWSER_CONFIRM_INTERACTIVE)
+  --engine <name>            Browser engine: chrome (default), lightpanda; implies --native (or AGENT_BROWSER_ENGINE)
   --native                   [Experimental] Use native Rust daemon instead of Node.js (or AGENT_BROWSER_NATIVE)
   --config <path>            Use a custom config file (or AGENT_BROWSER_CONFIG env)
   --debug                    Debug output
@@ -2486,7 +2584,7 @@ Environment:
   AGENT_BROWSER_ANNOTATE         Annotated screenshot with numbered labels and legend
   AGENT_BROWSER_DEBUG            Debug output
   AGENT_BROWSER_IGNORE_HTTPS_ERRORS Ignore HTTPS certificate errors
-  AGENT_BROWSER_PROVIDER         Browser provider (ios, browserbase, kernel, browseruse)
+  AGENT_BROWSER_PROVIDER         Browser provider (ios, browserbase, kernel, browseruse, browserless)
   AGENT_BROWSER_AUTO_CONNECT     Auto-discover and connect to running Chrome
   AGENT_BROWSER_ALLOW_FILE_ACCESS Allow file:// URLs to access local files
   AGENT_BROWSER_COLOR_SCHEME     Color scheme preference (dark, light, no-preference)
@@ -2504,7 +2602,11 @@ Environment:
   AGENT_BROWSER_ACTION_POLICY    Path to action policy JSON file
   AGENT_BROWSER_CONFIRM_ACTIONS  Action categories requiring confirmation
   AGENT_BROWSER_CONFIRM_INTERACTIVE Enable interactive confirmation prompts
+  AGENT_BROWSER_ENGINE           Browser engine: chrome (default), lightpanda
   AGENT_BROWSER_NATIVE           Use native Rust daemon (experimental, no Node.js/Playwright)
+  AGENT_BROWSER_SCREENSHOT_DIR   Default screenshot output directory
+  AGENT_BROWSER_SCREENSHOT_QUALITY JPEG quality 0-100
+  AGENT_BROWSER_SCREENSHOT_FORMAT Screenshot format: png, jpeg
 
 Install (recommended, fastest - native Rust CLI):
   npm install -g agent-browser

@@ -943,7 +943,7 @@ async function handleEvaluate(
   command: EvaluateCommand,
   browser: BrowserManager
 ): Promise<Response<EvaluateData>> {
-  const page = browser.getPage();
+  const page = browser.getFrame();
 
   // Evaluate the script directly as a string expression
   const result = await page.evaluate(command.script);
@@ -952,7 +952,7 @@ async function handleEvaluate(
 }
 
 async function handleWait(command: WaitCommand, browser: BrowserManager): Promise<Response> {
-  const page = browser.getPage();
+  const page = browser.getFrame();
 
   if (command.text) {
     await page.waitForFunction(
@@ -974,7 +974,7 @@ async function handleWait(command: WaitCommand, browser: BrowserManager): Promis
 }
 
 async function handleScroll(command: ScrollCommand, browser: BrowserManager): Promise<Response> {
-  const page = browser.getPage();
+  const page = browser.getFrame();
 
   let deltaX = command.x ?? 0;
   let deltaY = command.y ?? 0;
@@ -1045,7 +1045,7 @@ async function handleContent(
   command: ContentCommand,
   browser: BrowserManager
 ): Promise<Response<ContentData>> {
-  const page = browser.getPage();
+  const page = browser.getFrame();
 
   let html: string;
   if (command.selector) {
@@ -1213,7 +1213,7 @@ async function handleGetByRole(
   command: GetByRoleCommand,
   browser: BrowserManager
 ): Promise<Response> {
-  const page = browser.getPage();
+  const page = browser.getFrame();
   const locator = page.getByRole(command.role as any, { name: command.name, exact: command.exact });
 
   switch (command.subaction) {
@@ -1236,7 +1236,7 @@ async function handleGetByText(
   command: GetByTextCommand,
   browser: BrowserManager
 ): Promise<Response> {
-  const page = browser.getPage();
+  const page = browser.getFrame();
   const locator = page.getByText(command.text, { exact: command.exact });
 
   switch (command.subaction) {
@@ -1253,7 +1253,7 @@ async function handleGetByLabel(
   command: GetByLabelCommand,
   browser: BrowserManager
 ): Promise<Response> {
-  const page = browser.getPage();
+  const page = browser.getFrame();
   const locator = page.getByLabel(command.label, { exact: command.exact });
 
   switch (command.subaction) {
@@ -1273,7 +1273,7 @@ async function handleGetByPlaceholder(
   command: GetByPlaceholderCommand,
   browser: BrowserManager
 ): Promise<Response> {
-  const page = browser.getPage();
+  const page = browser.getFrame();
   const locator = page.getByPlaceholder(command.placeholder, { exact: command.exact });
 
   switch (command.subaction) {
@@ -1328,7 +1328,7 @@ async function handleStorageGet(
   command: StorageGetCommand,
   browser: BrowserManager
 ): Promise<Response> {
-  const page = browser.getPage();
+  const page = browser.getFrame();
   const storageType = command.type === 'local' ? 'localStorage' : 'sessionStorage';
 
   if (command.key) {
@@ -1354,7 +1354,7 @@ async function handleStorageSet(
   command: StorageSetCommand,
   browser: BrowserManager
 ): Promise<Response> {
-  const page = browser.getPage();
+  const page = browser.getFrame();
   const storageType = command.type === 'local' ? 'localStorage' : 'sessionStorage';
 
   await page.evaluate(
@@ -1367,7 +1367,7 @@ async function handleStorageClear(
   command: StorageClearCommand,
   browser: BrowserManager
 ): Promise<Response> {
-  const page = browser.getPage();
+  const page = browser.getFrame();
   const storageType = command.type === 'local' ? 'localStorage' : 'sessionStorage';
 
   await page.evaluate(`${storageType}.clear()`);
@@ -1716,7 +1716,7 @@ async function handleStyles(
   command: StylesCommand,
   browser: BrowserManager
 ): Promise<Response<StylesData>> {
-  const page = browser.getPage();
+  const page = browser.getFrame();
 
   // Shared extraction logic as a string to be eval'd in browser context
   const extractStylesScript = `(function(el) {
@@ -2219,7 +2219,7 @@ async function handleEvalHandle(
   command: Command & { action: 'evalhandle'; script: string },
   browser: BrowserManager
 ): Promise<Response> {
-  const page = browser.getPage();
+  const page = browser.getFrame();
   const handle = await page.evaluateHandle(command.script);
   const result = await handle.jsonValue().catch(() => 'Handle (non-serializable)');
   return successResponse(command.id, { result });
@@ -2241,7 +2241,7 @@ async function handleAddScript(
   command: AddScriptCommand,
   browser: BrowserManager
 ): Promise<Response> {
-  const page = browser.getPage();
+  const page = browser.getFrame();
 
   if (command.content) {
     await page.addScriptTag({ content: command.content });
@@ -2256,7 +2256,7 @@ async function handleAddStyle(
   command: AddStyleCommand,
   browser: BrowserManager
 ): Promise<Response> {
-  const page = browser.getPage();
+  const page = browser.getFrame();
 
   if (command.content) {
     await page.addStyleTag({ content: command.content });
@@ -2307,7 +2307,7 @@ async function handleGetByAltText(
   command: GetByAltTextCommand,
   browser: BrowserManager
 ): Promise<Response> {
-  const page = browser.getPage();
+  const page = browser.getFrame();
   const locator = page.getByAltText(command.text, { exact: command.exact });
 
   switch (command.subaction) {
@@ -2324,7 +2324,7 @@ async function handleGetByTitle(
   command: GetByTitleCommand,
   browser: BrowserManager
 ): Promise<Response> {
-  const page = browser.getPage();
+  const page = browser.getFrame();
   const locator = page.getByTitle(command.text, { exact: command.exact });
 
   switch (command.subaction) {
@@ -2341,7 +2341,7 @@ async function handleGetByTestId(
   command: GetByTestIdCommand,
   browser: BrowserManager
 ): Promise<Response> {
-  const page = browser.getPage();
+  const page = browser.getFrame();
   const locator = page.getByTestId(command.testId);
 
   switch (command.subaction) {
@@ -2396,7 +2396,7 @@ async function handleWaitForLoadState(
   command: WaitForLoadStateCommand,
   browser: BrowserManager
 ): Promise<Response> {
-  const page = browser.getPage();
+  const page = browser.getFrame();
   await page.waitForLoadState(command.state, { timeout: command.timeout });
   return successResponse(command.id, { state: command.state });
 }
@@ -2405,7 +2405,7 @@ async function handleSetContent(
   command: SetContentCommand,
   browser: BrowserManager
 ): Promise<Response> {
-  const page = browser.getPage();
+  const page = browser.getFrame();
   await page.setContent(command.html);
   return successResponse(command.id, { set: true });
 }
@@ -2481,7 +2481,7 @@ async function handleWaitForFunction(
   command: WaitForFunctionCommand,
   browser: BrowserManager
 ): Promise<Response> {
-  const page = browser.getPage();
+  const page = browser.getFrame();
   await page.waitForFunction(command.expression, { timeout: command.timeout });
   return successResponse(command.id, { waited: true });
 }
